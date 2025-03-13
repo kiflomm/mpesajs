@@ -2,6 +2,16 @@
   "name": "mpesajs",
   "version": "1.0.0",
   "description": "A Node.js SDK for seamless integration with M-Pesa payment gateway, providing easy-to-use methods for handling transactions, payments, and API interactions",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kiflomm/mpesajs.git"
+  },
   "keywords": [
     "mpesa",
     "payment-gateway",
@@ -19,15 +29,23 @@
     "payment-processing",
     "nodejs"
   ],
-  "license": "MIT",
   "author": "kiflom berihu",
-  "type": "module",
-  "main": "dist/index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "files": [
+    "dist"
+  ],
+  "license": "MIT",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/kiflomm/mpesajs/issues"
   },
+  "homepage": "https://github.com/kiflomm/mpesajs#readme",
   "devDependencies": {
+    "@types/base-64": "^1.0.2",
     "@types/node": "^22.13.10",
     "typescript": "^5.8.2"
+  },
+  "dependencies": {
+    "axios": "^1.8.3",
+    "base-64": "^1.0.0"
   }
 }
