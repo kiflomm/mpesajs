@@ -1,5 +1,7 @@
 import axios from 'axios';
 import base64 from 'base-64';
+import chalk from 'chalk';
+import { ErrorHandler } from './errorHandler';
 
 /**
  * Auth class handles authentication with the M-Pesa API
@@ -32,7 +34,7 @@ export class Auth {
     /**
      * Generates an access token for M-Pesa API authentication
      * @returns Promise containing the access token string
-     * @throws Error if token generation fails
+     * @throws MpesaError with specific error codes and messages based on the API response
      */
     public async generateToken(): Promise<string> {
         const credentials = `${this.consumerKey}:${this.consumerSecret}`;
@@ -48,14 +50,24 @@ export class Auth {
                 },
             });
 
-            if (response.data.access_token) {
+            if (response.data && response.data.access_token) {
                 return response.data.access_token;
             } else {
-                throw new Error('Failed to generate token: No access token received');
+                ErrorHandler.handleAuthError(response.data);
             }
         } catch (error) {
+            if (axios.isAxiosError(error)) {
+                if (error.response) {
+                    ErrorHandler.handleAuthError(error.response.data);
+                } else if (error.request) {
+                    throw new Error(chalk.red('🔌 No response received from the API. Please check your network connection.'));
+                } else {
+                    throw new Error(chalk.red(`⚠️ Request setup error: ${error.message}`));
+                }
+            }
+
             const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-            throw new Error(`Failed to generate token: ${errorMessage}`);
+            throw new Error(chalk.red(`❌ Failed to generate token: ${errorMessage}`));
         }
     }
 }
