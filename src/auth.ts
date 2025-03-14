@@ -1,6 +1,5 @@
 import axios from 'axios';
 import base64 from 'base-64';
-import chalk from 'chalk';
 import { ErrorHandler } from './errorHandler';
 
 /**
@@ -60,14 +59,14 @@ export class Auth {
                 if (error.response) {
                     ErrorHandler.handleAuthError(error.response.data);
                 } else if (error.request) {
-                    throw new Error(chalk.red('🔌 No response received from the API. Please check your network connection.'));
+                    throw new Error('No response received from the API. Please check your network connection.');
                 } else {
-                    throw new Error(chalk.red(`⚠️ Request setup error: ${error.message}`));
+                    throw new Error(`Request setup error: ${error.message}`);
                 }
             }
 
             const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-            throw new Error(chalk.red(`❌ Failed to generate token: ${errorMessage}`));
+            throw new Error(`Failed to generate token: ${errorMessage}`);
         }
     }
 }
