@@ -1,4 +1,13 @@
-export * from './auth';
-export * from './stkpush';
-export * from './registerUrl';
-export * from './payout';
+export { Auth } from './auth';
+export { StkPush } from './stkpush';
+export { RegisterUrl } from './registerUrl';
+export { Payout } from './payout';
+export {
+    MpesaError,
+    AuthenticationError,
+    NetworkError,
+    ValidationError,
+    StkPushError,
+    PayoutError,
+    RegisterUrlError
+} from './errorHandler';

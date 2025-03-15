@@ -1,6 +1,6 @@
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import base64 from 'base-64';
-import { ErrorHandler } from './errorHandler';
+import { ErrorHandler, MpesaError, AuthenticationError } from './errorHandler';
 
 /**
  * Auth class handles authentication with the M-Pesa API
@@ -76,14 +76,14 @@ export class Auth {
      * @throws {Error} If request setup fails
      * @throws {Error} If API returns error response
      */
-    public async generateToken(): Promise<{ token: string; expiresIn: number }> {
+    public async generateToken(): Promise<{ token: string; tokenType: string; expiresIn: number }> {
         // Combine consumer key and secret with colon separator
         const credentials = `${this.consumerKey}:${this.consumerSecret}`;
         // Base64 encode the credentials for Basic Auth
         const encodedCredentials = base64.encode(credentials);
 
         try {
-            // Make GET request to token endpoint with credentials
+            // Make GET request to/ token endpoint with credentials
             const response = await axios.get(this.baseUrl, {
                 params: {
                     grant_type: 'client_credentials', // Required grant type for OAuth 2.0
@@ -96,29 +96,34 @@ export class Auth {
             // Check if response contains valid token data
             if (response.data && response.data.access_token) {
                 // Return token and expiry time if successful
-                return { token: response.data.access_token, expiresIn: response.data.expires_in };
+                return { token: response.data.access_token, tokenType: response.data.token_type, expiresIn: response.data.expires_in };
             } else {
                 // Handle invalid response format
-                ErrorHandler.handleAuthError(response.data);
+                throw new AuthenticationError('Unknown authentication error occurred');
             }
         } catch (error) {
-            // Handle Axios-specific errors
-            if (axios.isAxiosError(error)) {
-                if (error.response) {
-                    // Handle error response from API
-                    ErrorHandler.handleAuthError(error.response.data);
-                } else if (error.request) {
-                    // Handle no response from server
-                    throw new Error('No response received from the API. Please check your network connection.');
-                } else {
-                    // Handle request setup errors
-                    throw new Error(`Request setup error: ${error.message}`);
+            if (error instanceof AxiosError) {
+                // Handle API response errors
+                if (error.response?.data) {
+                    return ErrorHandler.handleAuthError(error.response.data);
                 }
+
+                // Handle network errors (no response received)
+                if (error.request || error.code === 'ECONNABORTED') {
+                    throw new MpesaError('No response received from the API. Please check your network connection.');
+                }
+
+                // Handle request setup errors
+                throw new MpesaError(`Failed to generate token: ${error.message}`);
             }
 
-            // Handle any other types of errors
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-            throw new Error(`Failed to generate token: ${errorMessage}`);
+            // If it's an AuthenticationError, rethrow it
+            if (error instanceof AuthenticationError) {
+                throw error;
+            }
+
+            // For any other error, wrap it in MpesaError
+            throw new MpesaError(`Failed to generate token: ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
         }
     }
 }

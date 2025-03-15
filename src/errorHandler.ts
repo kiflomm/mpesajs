@@ -1,7 +1,69 @@
+// Base error class for all M-Pesa related errors
 export class MpesaError extends Error {
     constructor(message: string) {
         super(message);
         this.name = 'MpesaError';
+    }
+}
+
+// Authentication specific errors
+export class AuthenticationError extends MpesaError {
+    constructor(message: string, public errorCode?: string) {
+        super(message);
+        this.name = 'AuthenticationError';
+    }
+}
+
+// Network related errors
+export class NetworkError extends MpesaError {
+    constructor(message: string) {
+        super(message);
+        this.name = 'NetworkError';
+    }
+}
+
+// Validation errors for input parameters
+export class ValidationError extends MpesaError {
+    constructor(message: string, public field?: string) {
+        super(message);
+        this.name = 'ValidationError';
+    }
+}
+
+// STK Push specific errors
+export class StkPushError extends MpesaError {
+    constructor(
+        message: string,
+        public responseCode?: string,
+        public merchantRequestId?: string,
+        public checkoutRequestId?: string
+    ) {
+        super(message);
+        this.name = 'StkPushError';
+    }
+}
+
+// B2C Payout specific errors
+export class PayoutError extends MpesaError {
+    constructor(
+        message: string,
+        public responseCode?: string,
+        public conversationId?: string
+    ) {
+        super(message);
+        this.name = 'PayoutError';
+    }
+}
+
+// URL Registration specific errors
+export class RegisterUrlError extends MpesaError {
+    constructor(
+        message: string,
+        public responseCode?: string,
+        public shortCode?: string
+    ) {
+        super(message);
+        this.name = 'RegisterUrlError';
     }
 }
 
@@ -14,38 +76,30 @@ export class ErrorHandler {
         if (error?.resultCode) {
             switch (error.resultCode) {
                 case '999991':
-                    throw new MpesaError(
-                        `\nError: ${error.resultCode}\n` +
-                        `Description: Invalid client id passed\n` +
-                        `Possible Cause: Incorrect basic Authorization username\n` +
-                        `Mitigation: Input the correct username\n`
+                    throw new AuthenticationError(
+                        `Invalid client id passed. Please input the correct username.`,
+                        error.resultCode
                     );
                 case '999996':
-                    throw new MpesaError(
-                        `\nError: ${error.resultCode}\n` +
-                        `Description: Invalid Authentication passed\n` +
-                        `Possible Cause: Incorrect authorization type\n` +
-                        `Mitigation: Select type as Basic Auth\n`
+                    throw new AuthenticationError(
+                        `Invalid Authentication passed. Please select type as Basic Auth.`,
+                        error.resultCode
                     );
                 case '999997':
-                    throw new MpesaError(
-                        `\nError: ${error.resultCode}\n` +
-                        `Description: Invalid Authorization Header\n` +
-                        `Possible Cause: Incorrect basic authorization password\n` +
-                        `Mitigation: Input the correct password\n`
+                    throw new AuthenticationError(
+                        `Invalid Authorization Header. Please input the correct password.`,
+                        error.resultCode
                     );
                 case '999998':
-                    throw new MpesaError(
-                        `\nError: ${error.resultCode}\n` +
-                        `Description: Required parameter [grant_type] is invalid or empty\n` +
-                        `Possible Cause: Incorrect grant type\n` +
-                        `Mitigation: Select grant type as client credentials\n`
+                    throw new AuthenticationError(
+                        `Required parameter [grant_type] is invalid or empty. Please select grant type as client credentials.`,
+                        error.resultCode
                     );
                 default:
-                    throw new MpesaError(`\nUnknown Auth Error: ${error.resultDesc}\n`);
+                    throw new AuthenticationError(`Unknown Auth Error: ${error.resultDesc}`, error.resultCode);
             }
         }
-        throw new MpesaError('\nUnknown authentication error occurred\n');
+        throw new AuthenticationError('Unknown authentication error occurred');
     }
 
     /**
@@ -55,84 +109,44 @@ export class ErrorHandler {
     public static handleStkError(error: any): never {
         // Handle STK Push initiation errors
         if (error?.ResponseCode) {
-            switch (error.ResponseCode) {
-                case '3007':
-                    throw new MpesaError(
-                        `\nError: ${error.ResponseCode}\n` +
-                        `MerchantRequestID: ${error.MerchantRequestID}\n` +
-                        `CheckoutRequestID: ${error.CheckoutRequestID}\n` +
-                        `ResponseDescription: ${error.ResponseDescription}\n` +
-                        `CustomerMessage: ${error.CustomerMessage}\n`
-                    );
-                case 'SVC0403':
-                    throw new MpesaError(
-                        `\nError: ${error.ResponseCode}\n` +
-                        `MerchantRequestID: ${error.MerchantRequestID}\n` +
-                        `CheckoutRequestID: ${error.CheckoutRequestID}\n` +
-                        `ResponseDescription: ${error.ResponseDescription}\n` +
-                        `CustomerMessage: ${error.CustomerMessage}\n`
-                    );
-                case '1':
-                    throw new MpesaError(
-                        `\nError: ${error.ResponseCode}\n` +
-                        `MerchantRequestID: ${error.MerchantRequestID}\n` +
-                        `CheckoutRequestID: ${error.CheckoutRequestID}\n` +
-                        `ResponseDescription: ${error.ResponseDescription}\n` +
-                        `CustomerMessage: ${error.CustomerMessage}\n`
-                    );
-                default:
-                    throw new MpesaError(`\nSTK Push Error: ${error.ResponseDescription}\n`);
-            }
+            throw new StkPushError(
+                error.ResponseDescription || error.CustomerMessage || 'STK Push error occurred',
+                error.ResponseCode,
+                error.MerchantRequestID,
+                error.CheckoutRequestID
+            );
         }
 
         // Handle STK Push callback errors
         if (error?.Envelope?.Body?.stkCallback) {
             const callback = error.Envelope.Body.stkCallback;
+            let message = '';
+
             switch (callback.ResultCode) {
                 case 'TP40087':
-                    throw new MpesaError(
-                        `\nError: ${callback.ResultCode}\n` +
-                        `ResultDesc: ${callback.ResultDesc}\n` +
-                        `Possible Cause: User entered wrong M-PESA PIN\n` +
-                        `Solution: Ask user to try again with correct PIN\n`
-                    );
+                    message = 'User entered wrong M-PESA PIN. Please try again with correct PIN.';
+                    break;
                 case '17':
-                    throw new MpesaError(
-                        `\nError: ${callback.ResultCode}\n` +
-                        `ResultDesc: ${callback.ResultDesc}\n` +
-                        `Possible Cause: M-PESA system internal error\n` +
-                        `Solution: Please try again after a few minutes\n`
-                    );
+                    message = 'M-PESA system internal error. Please try again after a few minutes.';
+                    break;
                 default:
-                    throw new MpesaError(`\nSTK Callback Error: ${callback.ResultDesc}\n`);
+                    message = callback.ResultDesc;
             }
+
+            throw new StkPushError(
+                message,
+                callback.ResultCode,
+                callback.MerchantRequestID,
+                callback.CheckoutRequestID
+            );
         }
 
-        // Handle general API errors
-        if (error?.errorCode) {
-            switch (error.errorCode) {
-                case '404.001.03':
-                    throw new MpesaError(
-                        `\nError: ${error.errorCode}\n` +
-                        `RequestId: ${error.requestId}\n` +
-                        `ErrorMessage: ${error.errorMessage}\n` +
-                        `Possible Cause: Access token has expired or is invalid\n` +
-                        `Solution: Generate a new access token\n`
-                    );
-                case '500.002.1001':
-                    throw new MpesaError(
-                        `\nError: ${error.errorCode}\n` +
-                        `RequestId: ${error.requestId}\n` +
-                        `ErrorMessage: ${error.errorMessage}\n` +
-                        `Possible Cause: Service is currently under maintenance. Please try again later\n` +
-                        `Solution: Please try again later\n`
-                    );
-                default:
-                    throw new MpesaError(`\nAPI Error: ${error.errorMessage}\n`);
-            }
+        // Handle network errors
+        if (error?.request) {
+            throw new NetworkError('No response received from the API. Please check your network connection.');
         }
 
-        throw new MpesaError(`\nUnknown error occurred\n`);
+        throw new StkPushError('Unknown STK Push error occurred');
     }
 
     /**
@@ -143,44 +157,26 @@ export class ErrorHandler {
         // Handle response data errors
         if (error?.header) {
             const { responseCode, responseMessage } = error.header;
-            switch (responseCode) {
-                case '400':
-                    throw new MpesaError(
-                        `\nError: ${responseCode}\n` +
-                        `Description: Short Code already Registered\n` +
-                        `ResponseMessage: ${responseMessage}\n`
-                    );
-                case '200':
-                    throw new MpesaError(
-                        `\nError: ${responseCode}\n` +
-                        `Description: Success (Request processed successfully)\n` +
-                        `ResponseMessage: ${responseMessage}\n`
-                    );
-                default:
-                    throw new MpesaError(
-                        `\nError: ${responseCode}\n` +
-                        `Description: Register URL Error\n` +
-                        `ResponseMessage: ${responseMessage}\n`
-                    );
-            }
+            throw new RegisterUrlError(
+                responseMessage || 'Register URL error occurred',
+                responseCode
+            );
         }
 
         // Handle API-level errors
         if (error?.errorCode) {
-            throw new MpesaError(
-                `\nError: ${error.errorCode}\n` +
-                `Description: API Error\n` +
-                `Message: ${error.errorMessage || 'Unknown error occurred'}\n`
+            throw new RegisterUrlError(
+                error.errorMessage || 'Unknown error occurred',
+                error.errorCode
             );
         }
 
-        // Handle network or request errors
+        // Handle network errors
         if (error?.request) {
-            throw new MpesaError('\nError: No response received from the API. Please check your network connection.\n');
+            throw new NetworkError('No response received from the API. Please check your network connection.');
         }
 
-        // Handle unknown errors
-        throw new MpesaError(`\n\nRegister URL error occurred: ${error?.message || 'No error details available'}\n`);
+        throw new RegisterUrlError(`Register URL error occurred: ${error?.message || 'No error details available'}`);
     }
 
     /**
@@ -190,53 +186,55 @@ export class ErrorHandler {
     public static handlePayoutError(error: any): never {
         // Handle B2C specific response errors
         if (error?.ResponseCode && error?.ResponseCode !== '0') {
-            throw new MpesaError(
-                `\nError: ${error.ResponseCode}\n` +
-                `Description: ${error.ResponseDescription}\n` +
-                `ConversationID: ${error.ConversationID}\n` +
-                `OriginatorConversationID: ${error.OriginatorConversationID}\n`
+            throw new PayoutError(
+                error.ResponseDescription || 'Payout error occurred',
+                error.ResponseCode,
+                error.ConversationID
             );
         }
 
         // Handle API-level errors
         if (error?.errorCode) {
+            let message = '';
             switch (error.errorCode) {
                 case '401.002.01':
-                    throw new MpesaError(
-                        `\nError: ${error.errorCode}\n` +
-                        `Description: Invalid Access Token\n` +
-                        `Message: ${error.errorMessage}\n` +
-                        `RequestID: ${error.requestId}\n`
-                    );
+                    message = 'Invalid Access Token';
+                    break;
                 case '500.001.1001':
-                    throw new MpesaError(
-                        `\nError: ${error.errorCode}\n` +
-                        `Description: System Error\n` +
-                        `Message: ${error.errorMessage}\n` +
-                        `RequestID: ${error.requestId}\n`
-                    );
+                    message = 'System Error';
+                    break;
                 case '403.001.01':
-                    throw new MpesaError(
-                        `\nError: ${error.errorCode}\n` +
-                        `Description: Access Denied - Invalid Credentials\n` +
-                        `Message: ${error.errorMessage}\n` +
-                        `RequestID: ${error.requestId}\n`
-                    );
+                    message = 'Access Denied - Invalid Credentials';
+                    break;
                 default:
-                    throw new MpesaError(
-                        `\nError: ${error.errorCode}\n` +
-                        `Message: ${error.errorMessage}\n` +
-                        `RequestID: ${error.requestId}\n`
-                    );
+                    message = error.errorMessage || 'Unknown error occurred';
+            }
+
+            throw new PayoutError(
+                message,
+                error.errorCode,
+                error.requestId
+            );
+        }
+
+        // Handle network errors
+        if (error?.request) {
+            throw new NetworkError('No response received from the API. Please check your network connection.');
+        }
+
+        throw new PayoutError(`Unknown Payout error occurred: ${error?.message || 'No error details available'}`);
+    }
+
+    /**
+     * Validates input parameters
+     * @param params Parameters to validate
+     * @param rules Validation rules
+     */
+    public static validateInput(params: Record<string, any>, rules: Record<string, (value: any) => boolean>): void {
+        for (const [field, validator] of Object.entries(rules)) {
+            if (!validator(params[field])) {
+                throw new ValidationError(`Invalid ${field}`, field);
             }
         }
-
-        // Handle network or request errors
-        if (error?.request) {
-            throw new MpesaError('\nError: No response received from the API. Please check your network connection.\n');
-        }
-
-        // Handle unknown errors
-        throw new MpesaError(`\nUnknown Payout error occurred: ${error?.message || 'No error details available'}\n`);
     }
 }
