@@ -180,6 +180,63 @@ export class ErrorHandler {
         }
 
         // Handle unknown errors
-        throw new MpesaError(`\nUnknown Register URL error occurred: ${error?.message || 'No error details available'}\n`);
+        throw new MpesaError(`\n\nRegister URL error occurred: ${error?.message || 'No error details available'}\n`);
+    }
+
+    /**
+     * Handles B2C Payout API errors
+     * @param error The error response from the API
+     */
+    public static handlePayoutError(error: any): never {
+        // Handle B2C specific response errors
+        if (error?.ResponseCode && error?.ResponseCode !== '0') {
+            throw new MpesaError(
+                `\nError: ${error.ResponseCode}\n` +
+                `Description: ${error.ResponseDescription}\n` +
+                `ConversationID: ${error.ConversationID}\n` +
+                `OriginatorConversationID: ${error.OriginatorConversationID}\n`
+            );
+        }
+
+        // Handle API-level errors
+        if (error?.errorCode) {
+            switch (error.errorCode) {
+                case '401.002.01':
+                    throw new MpesaError(
+                        `\nError: ${error.errorCode}\n` +
+                        `Description: Invalid Access Token\n` +
+                        `Message: ${error.errorMessage}\n` +
+                        `RequestID: ${error.requestId}\n`
+                    );
+                case '500.001.1001':
+                    throw new MpesaError(
+                        `\nError: ${error.errorCode}\n` +
+                        `Description: System Error\n` +
+                        `Message: ${error.errorMessage}\n` +
+                        `RequestID: ${error.requestId}\n`
+                    );
+                case '403.001.01':
+                    throw new MpesaError(
+                        `\nError: ${error.errorCode}\n` +
+                        `Description: Access Denied - Invalid Credentials\n` +
+                        `Message: ${error.errorMessage}\n` +
+                        `RequestID: ${error.requestId}\n`
+                    );
+                default:
+                    throw new MpesaError(
+                        `\nError: ${error.errorCode}\n` +
+                        `Message: ${error.errorMessage}\n` +
+                        `RequestID: ${error.requestId}\n`
+                    );
+            }
+        }
+
+        // Handle network or request errors
+        if (error?.request) {
+            throw new MpesaError('\nError: No response received from the API. Please check your network connection.\n');
+        }
+
+        // Handle unknown errors
+        throw new MpesaError(`\nUnknown Payout error occurred: ${error?.message || 'No error details available'}\n`);
     }
 }
