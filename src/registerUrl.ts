@@ -1,25 +1,38 @@
 import axios from 'axios';
+import { ErrorHandler, MpesaError } from './errorHandler';
+
 /**
- * Response type for Register URL API
+ * Response interface for URL registration containing status details
  */
 interface RegisterUrlResponse {
-    responseCode: string;
-    responseMessage: string;
-    customerMessage: string;
-    timestamp: string;
+    responseCode: string;      // Status code from the M-Pesa API
+    responseMessage: string;   // Detailed message about the registration status
+    customerMessage: string;   // User-friendly message about the registration
+    timestamp: string;        // When the registration was processed
 }
 
 /**
- * RegisterUrl class handles the registration of validation and confirmation URLs
- * for handling transaction notifications from M-PESA
+ * Payload interface for URL registration request
+ */
+interface RegisterUrlPayload {
+    ShortCode: string;        // Business short code or PayBill number
+    ResponseType: 'Completed' | 'Cancelled';  // Type of response expected from M-Pesa
+    CommandID: string;        // Command identifier for the registration
+    ConfirmationURL: string;  // URL to receive successful transaction confirmations
+    ValidationURL: string;    // URL to validate transactions before processing
+}
+
+/**
+ * Class to handle M-Pesa URL registration functionality
+ * Allows businesses to register their confirmation and validation URLs
  */
 export class RegisterUrl {
-    private baseUrl: string;
-    private apiKey: string;
+    private readonly baseUrl: string;
+    private readonly apiKey: string;
 
     /**
-     * Creates an instance of RegisterUrl class
-     * @param apiKey - The customer key (API key) for authentication
+     * Creates an instance of RegisterUrl
+     * @param apiKey - M-Pesa API key for authentication
      * @param sandbox - Whether to use sandbox environment (default: true)
      */
     constructor(apiKey: string, sandbox: boolean = true) {
@@ -30,13 +43,66 @@ export class RegisterUrl {
     }
 
     /**
-     * Registers validation and confirmation URLs for receiving payment notifications
-     * @param shortCode - The organization's shortcode (till number)
-     * @param confirmationUrl - URL that receives the confirmation request from API upon payment completion
-     * @param validationUrl - URL that receives the validation request from the API upon payment submission
-     * @param responseType - Response type for validation URL (Completed or Cancelled)
-     * @returns Promise containing the registration response
-     * @throws Error if the request fails
+     * Validates that both URLs use HTTPS protocol
+     * @param confirmationUrl - URL for successful transaction notifications
+     * @param validationUrl - URL for transaction validation
+     * @throws Error if URLs don't use HTTPS
+     */
+    private validateUrls(confirmationUrl: string, validationUrl: string): void {
+        if (!confirmationUrl.startsWith('https://') || !validationUrl.startsWith('https://')) {
+            throw new MpesaError('Both confirmation and validation URLs must use HTTPS protocol');
+        }
+    }
+
+    /**
+     * Builds the payload for URL registration request
+     * @param shortCode - Business short code
+     * @param responseType - Type of response expected
+     * @param commandId - Command identifier
+     * @param confirmationUrl - URL for confirmations
+     * @param validationUrl - URL for validations
+     * @returns Formatted payload object
+     */
+    private buildPayload(
+        shortCode: string,
+        responseType: 'Completed' | 'Cancelled',
+        commandId: string,
+        confirmationUrl: string,
+        validationUrl: string
+    ): RegisterUrlPayload {
+        return {
+            ShortCode: shortCode,
+            ResponseType: responseType,
+            CommandID: commandId,
+            ConfirmationURL: confirmationUrl,
+            ValidationURL: validationUrl
+        };
+    }
+
+    /**
+     * Parses and validates the API response
+     * @param response - Raw API response
+     * @returns Formatted RegisterUrlResponse object
+     * @throws Error if response format is invalid
+     */
+    private parseResponse(response: any): RegisterUrlResponse {
+        if (!response.data?.header) {
+            ErrorHandler.handleRegisterUrlError(response.data);
+        }
+
+        const { responseCode, responseMessage, customerMessage, timestamp } = response.data.header;
+        return { responseCode, responseMessage, customerMessage, timestamp };
+    }
+
+    /**
+     * Registers validation and confirmation URLs with M-Pesa
+     * @param shortCode - Business short code or PayBill number
+     * @param responseType - Type of response expected (default: 'Completed')
+     * @param commandId - Command identifier (default: 'RegisterURL')
+     * @param confirmationUrl - HTTPS URL to receive successful transaction confirmations
+     * @param validationUrl - HTTPS URL to validate transactions before processing
+     * @returns Promise containing registration response details
+     * @throws MpesaError if registration fails or validation errors occur
      */
     public async register(
         shortCode: string,
@@ -46,53 +112,23 @@ export class RegisterUrl {
         validationUrl: string,
     ): Promise<RegisterUrlResponse> {
         try {
-            // Validate URLs are HTTPS
-            if (!confirmationUrl.startsWith('https://') || !validationUrl.startsWith('https://')) {
-                throw new Error('Both confirmation and validation URLs must use HTTPS protocol');
-            }
+            this.validateUrls(confirmationUrl, validationUrl);
 
-            // Prepare request payload
-            const payload = {
-                ShortCode: shortCode,
-                ResponseType: responseType,
-                CommandID: commandId,
-                ConfirmationURL: confirmationUrl,
-                ValidationURL: validationUrl
-            };
+            const payload = this.buildPayload(
+                shortCode,
+                responseType,
+                commandId,
+                confirmationUrl,
+                validationUrl
+            );
 
-            // Send registration request
             const response = await axios.post(this.baseUrl, payload, {
-                params: {
-                    apikey: this.apiKey
-                }
+                params: { apikey: this.apiKey }
             });
-            // Handle successful response
-            if (response.data) {
-                return {
-                    responseCode: response.data.header.responseCode,
-                    responseMessage: response.data.header.responseMessage,
-                    customerMessage: response.data.header.customerMessage,
-                    timestamp: response.data.header.timestamp
-                };
-            }
 
-            throw new Error('Invalid response received from the API');
-
+            return this.parseResponse(response);
         } catch (error) {
-            if (axios.isAxiosError(error)) {
-                if (error.response) {
-                    // Handle API errors
-                    const data = error.response.data;
-                    if (data.responseCode === '400') {
-                        throw new Error('Short Code already Registered');
-                    }
-                    throw new Error(`API Error: ${data.responseMessage || 'Unknown error occurred'}`);
-                } else if (error.request) {
-                    throw new Error('No response received from the API. Please check your network connection.');
-                }
-                throw new Error(`Request failed: ${error.message}`);
-            }
-            throw error;
+            ErrorHandler.handleRegisterUrlError(error);
         }
     }
-} 
+}

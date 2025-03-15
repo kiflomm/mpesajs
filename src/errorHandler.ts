@@ -134,4 +134,52 @@ export class ErrorHandler {
 
         throw new MpesaError(`\nUnknown error occurred\n`);
     }
+
+    /**
+     * Handles Register URL API errors
+     * @param error The error response from the API
+     */
+    public static handleRegisterUrlError(error: any): never {
+        // Handle response data errors
+        if (error?.header) {
+            const { responseCode, responseMessage } = error.header;
+            switch (responseCode) {
+                case '400':
+                    throw new MpesaError(
+                        `\nError: ${responseCode}\n` +
+                        `Description: Short Code already Registered\n` +
+                        `ResponseMessage: ${responseMessage}\n`
+                    );
+                case '200':
+                    throw new MpesaError(
+                        `\nError: ${responseCode}\n` +
+                        `Description: Success (Request processed successfully)\n` +
+                        `ResponseMessage: ${responseMessage}\n`
+                    );
+                default:
+                    throw new MpesaError(
+                        `\nError: ${responseCode}\n` +
+                        `Description: Register URL Error\n` +
+                        `ResponseMessage: ${responseMessage}\n`
+                    );
+            }
+        }
+
+        // Handle API-level errors
+        if (error?.errorCode) {
+            throw new MpesaError(
+                `\nError: ${error.errorCode}\n` +
+                `Description: API Error\n` +
+                `Message: ${error.errorMessage || 'Unknown error occurred'}\n`
+            );
+        }
+
+        // Handle network or request errors
+        if (error?.request) {
+            throw new MpesaError('\nError: No response received from the API. Please check your network connection.\n');
+        }
+
+        // Handle unknown errors
+        throw new MpesaError(`\nUnknown Register URL error occurred: ${error?.message || 'No error details available'}\n`);
+    }
 }
