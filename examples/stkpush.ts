@@ -1,5 +1,5 @@
 // Import required dependencies from mpesajs library and dotenv
-import { Auth, StkPush, StkPushError, NetworkError, ValidationError, AuthenticationError } from 'mpesajs';
+import { Auth, StkPush, StkPushError, NetworkError, ValidationError, AuthenticationError, MpesaError } from 'mpesajs';
 import dotenv from 'dotenv';
 
 // Load environment variables from .env file into process.env
@@ -117,6 +117,7 @@ function createPaymentDetails(): PaymentDetails {
  * @throws StkPushError if STK push request fails
  * @throws NetworkError if network connection fails
  * @throws ValidationError if required parameters are invalid
+ * @throws MpesaError for other M-Pesa related errors
  */
 async function initiatePayment(): Promise<void> {
     try {
@@ -124,7 +125,7 @@ async function initiatePayment(): Promise<void> {
         const config = loadMpesaConfig();
 
         // Initialize M-Pesa client with authentication
-        const mpesa = new StkPush(new Auth(config.consumerKey, config.consumerSecret));
+        const mpesa = new StkPush(new Auth(config.consumerKey, config.consumerSecret, config.sandbox));
 
         // Get and validate payment details
         const paymentDetails = createPaymentDetails();
@@ -140,47 +141,73 @@ async function initiatePayment(): Promise<void> {
             paymentDetails.description
         );
 
+        // Log success response with detailed information
         console.log('Payment initiated successfully:', {
             MerchantRequestID: response.MerchantRequestID,
             CheckoutRequestID: response.CheckoutRequestID,
             ResponseDescription: response.ResponseDescription,
-            CustomerMessage: response.CustomerMessage
+            CustomerMessage: response.CustomerMessage,
+            ResponseCode: response.ResponseCode,
         });
 
     } catch (error) {
+        // Handle authentication errors
         if (error instanceof AuthenticationError) {
-            console.error('Authentication failed:', error.message);
+            console.error('Authentication failed:');
+            console.error('Error name:', error.name);
+            console.error('Error message:', error.message);
             console.error('Error code:', error.errorCode);
             throw error;
         }
 
+        // Handle STK Push specific errors
         if (error instanceof StkPushError) {
-            console.error('STK Push failed:', error.message);
+            console.error('STK Push failed:');
+            console.error('Error name:', error.name);
+            console.error('Error message:', error.message);
             console.error('Response code:', error.responseCode);
             console.error('Merchant request ID:', error.merchantRequestId);
             console.error('Checkout request ID:', error.checkoutRequestId);
             throw error;
         }
 
+        // Handle network connectivity errors
         if (error instanceof NetworkError) {
-            console.error('Network error:', error.message);
+            console.error('Network error:');
+            console.error('Error message:', error.message);
+            console.error('Please check your internet connection and try again');
             throw error;
         }
 
+        // Handle validation errors
         if (error instanceof ValidationError) {
-            console.error('Validation error:', error.message);
+            console.error('Validation error:');
+            console.error('Error message:', error.message);
             console.error('Invalid field:', error.field);
+            console.error('Please check your input parameters and try again');
+            throw error;
+        }
+
+        // Handle general M-Pesa errors
+        if (error instanceof MpesaError) {
+            console.error('M-Pesa error:');
+            console.error('Error message:', error.message);
             throw error;
         }
 
         // Handle unexpected errors
-        console.error('An unexpected error occurred:', error);
+        console.error('An unexpected error occurred:');
+        console.error('Error:', error);
         throw new Error('Failed to initiate payment due to an unexpected error');
     }
 }
 
-// Execute the payment initiation
+// Execute the payment initiation with proper error handling
 initiatePayment()
     .catch(error => {
+        // Log the error stack trace in development environment
+        if (process.env.NODE_ENV === 'development') {
+            console.error('Stack trace:', error.stack);
+        }
         process.exit(1);
     });

@@ -102,7 +102,6 @@ async function registerUrls(): Promise<void> {
         if (error instanceof RegisterUrlError) {
             console.error('URL registration failed:', error.message);
             console.error('Response code:', error.responseCode);
-            console.error('Short code:', error.shortCode);
             throw error;
         }
 

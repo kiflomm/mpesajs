@@ -1,7 +1,7 @@
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import base64 from 'base-64';
 import { Auth } from './auth';
-import { ErrorHandler } from './errorHandler';
+import { ErrorHandler, MpesaError, StkPushError, NetworkError, ValidationError } from './errorHandler';
 import crypto from 'crypto';
 
 /**
@@ -120,11 +120,30 @@ export class StkPush {
         transactionDesc: string
     ): Promise<any> {
         try {
+            // Validate input parameters first
+            ErrorHandler.validateInput({
+                businessShortCode,
+                passkey,
+                amount,
+                phoneNumber,
+                callbackUrl,
+                accountReference,
+                transactionDesc
+            }, {
+                businessShortCode: (value) => typeof value === 'string' && value.length > 0,
+                passkey: (value) => typeof value === 'string' && value.length > 0,
+                amount: (value) => typeof value === 'number' && value > 0,
+                phoneNumber: (value) => /^251[7-9][0-9]{8}$/.test(value),
+                callbackUrl: (value) => value.startsWith('https://'),
+                accountReference: (value) => typeof value === 'string' && value.length <= 12,
+                transactionDesc: (value) => typeof value === 'string' && value.length <= 13
+            });
+
             // Generate the timestamp and password
             let timestamp = new Date()
                 .toISOString()
                 .replace(/[^0-9]/g, '')
-                .slice(0, 14); // Format: YYYYMMDDHHmmss
+                .slice(0, 14);
             let password = this.generatePassword(businessShortCode, passkey, timestamp);
 
             // Generate the access token
@@ -136,7 +155,7 @@ export class StkPush {
 
             // Prepare the request payload
             const payload = {
-                MerchantRequestID: Math.random().toString(36).substring(2, 15),
+                MerchantRequestID: crypto.randomUUID().replace(/-/g, '').slice(0, 20),
                 BusinessShortCode: businessShortCode,
                 Password: password,
                 Timestamp: timestamp,
@@ -153,7 +172,8 @@ export class StkPush {
             // Send the STK Push request
             const response = await axios.post(this.baseUrl, payload, {
                 headers: {
-                    'Authorization': `Bearer ${accessToken}`
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json'
                 },
             });
 
@@ -164,18 +184,32 @@ export class StkPush {
                 ErrorHandler.handleStkError(response.data);
             }
         } catch (error) {
-            if (axios.isAxiosError(error)) {
-                if (error.response) {
-                    ErrorHandler.handleStkError(error.response.data);
-                } else if (error.request) {
-                    throw new Error('No response received from the API. Please check your network connection.');
-                } else {
-                    throw new Error(`Request setup error: ${error.message}`);
-                }
+            if (error instanceof ValidationError) {
+                throw error;
             }
 
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-            throw new Error(`Failed to send STK Push request: ${errorMessage}`);
+            if (error instanceof AxiosError) {
+                // Handle API response errors
+                if (error.response?.data) {
+                    ErrorHandler.handleStkError(error.response.data);
+                }
+
+                // Handle network errors (no response received)
+                if (error.request || error.code === 'ECONNABORTED') {
+                    throw new NetworkError('No response received from the API. Please check your network connection.');
+                }
+
+                // Handle request setup errors
+                throw new MpesaError(`Failed to send STK Push request: ${error.message}`);
+            }
+
+            // If it's already an StkPushError, rethrow it
+            if (error instanceof StkPushError) {
+                throw error;
+            }
+
+            // For any other error, wrap it in MpesaError
+            throw new MpesaError(`Failed to send STK Push request: ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
         }
     }
 }

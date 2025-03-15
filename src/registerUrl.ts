@@ -1,5 +1,5 @@
-import axios from 'axios';
-import { ErrorHandler, MpesaError } from './errorHandler';
+import axios, { AxiosError } from 'axios';
+import { ErrorHandler, MpesaError, ValidationError, NetworkError, RegisterUrlError } from './errorHandler';
 
 /**
  * Response interface for URL registration containing status details
@@ -102,7 +102,10 @@ export class RegisterUrl {
      * @param confirmationUrl - HTTPS URL to receive successful transaction confirmations
      * @param validationUrl - HTTPS URL to validate transactions before processing
      * @returns Promise containing registration response details
-     * @throws MpesaError if registration fails or validation errors occur
+     * @throws RegisterUrlError if registration fails
+     * @throws NetworkError if network connection fails
+     * @throws ValidationError if URLs are invalid
+     * @throws MpesaError for other API errors
      */
     public async register(
         shortCode: string,
@@ -128,7 +131,32 @@ export class RegisterUrl {
 
             return this.parseResponse(response);
         } catch (error) {
-            ErrorHandler.handleRegisterUrlError(error);
+            if (error instanceof ValidationError) {
+                throw error;
+            }
+
+            if (error instanceof AxiosError) {
+                // Handle API response errors
+                if (error.response?.data) {
+                    return ErrorHandler.handleRegisterUrlError(error.response.data);
+                }
+
+                // Handle network errors (no response received)
+                if (error.request || error.code === 'ECONNABORTED') {
+                    throw new NetworkError('No response received from the API. Please check your network connection.');
+                }
+
+                // Handle request setup errors
+                throw new MpesaError(`Failed to register URLs: ${error.message}`);
+            }
+
+            // If it's already a RegisterUrlError, rethrow it
+            if (error instanceof RegisterUrlError) {
+                throw error;
+            }
+
+            // For any other error, wrap it in MpesaError
+            throw new MpesaError(`Failed to register URLs: ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
         }
     }
 }
