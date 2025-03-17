@@ -1,7 +1,7 @@
 // Import required dependencies
 import axios, { AxiosError } from 'axios';
-import { Auth } from '../auth';
-import { MpesaError, AuthenticationError, NetworkError } from '../errorHandler';
+import { Auth } from '../src/auth';
+import { MpesaError, AuthenticationError } from '../src/errors/ErrorHandlers';
 
 // Mock the axios module to control API responses in tests
 jest.mock('axios');

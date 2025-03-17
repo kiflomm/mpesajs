@@ -34,8 +34,7 @@ async function generateMpesaToken(): Promise<TokenResponse> {
         console.log('Token generated successfully:', {
             expiresIn: token.expiresIn,
             tokenType: token.tokenType,
-            // Only show first few characters of token for security
-            token: `${token.token.substring(0, 10)}...`
+            token: token.token
         });
 
         return { token: token.token, tokenType: token.tokenType, expiresIn: token.expiresIn };

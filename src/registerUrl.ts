@@ -1,5 +1,6 @@
 import axios, { AxiosError } from 'axios';
-import { ErrorHandler, MpesaError, ValidationError, NetworkError, RegisterUrlError } from './errorHandler';
+import { MpesaError, ValidationError, NetworkError, RegisterUrlError, RegisterUrlErrorHandler } from './errors/ErrorHandlers';
+import { RateLimiter } from './utils/RateLimiter';
 
 /**
  * Response interface for URL registration containing status details
@@ -29,6 +30,7 @@ interface RegisterUrlPayload {
 export class RegisterUrl {
     private readonly baseUrl: string;
     private readonly apiKey: string;
+    private readonly rateLimiter: RateLimiter;
 
     /**
      * Creates an instance of RegisterUrl
@@ -40,6 +42,7 @@ export class RegisterUrl {
         this.baseUrl = sandbox
             ? 'https://apisandbox.safaricom.et/v1/c2b-register-url/register'
             : 'https://api.safaricom.et/v1/c2b-register-url/register';
+        this.rateLimiter = RateLimiter.getInstance();
     }
 
     /**
@@ -87,7 +90,7 @@ export class RegisterUrl {
      */
     private parseResponse(response: any): RegisterUrlResponse {
         if (!response.data?.header) {
-            ErrorHandler.handleRegisterUrlError(response.data);
+            RegisterUrlErrorHandler.handle(response.data);
         }
 
         const { responseCode, responseMessage, customerMessage, timestamp } = response.data.header;
@@ -114,49 +117,51 @@ export class RegisterUrl {
         confirmationUrl: string,
         validationUrl: string,
     ): Promise<RegisterUrlResponse> {
-        try {
-            this.validateUrls(confirmationUrl, validationUrl);
+        return this.rateLimiter.execute(async () => {
+            try {
+                this.validateUrls(confirmationUrl, validationUrl);
 
-            const payload = this.buildPayload(
-                shortCode,
-                responseType,
-                commandId,
-                confirmationUrl,
-                validationUrl
-            );
+                const payload = this.buildPayload(
+                    shortCode,
+                    responseType,
+                    commandId,
+                    confirmationUrl,
+                    validationUrl
+                );
 
-            const response = await axios.post(this.baseUrl, payload, {
-                params: { apikey: this.apiKey }
-            });
+                const response = await axios.post(this.baseUrl, payload, {
+                    params: { apikey: this.apiKey }
+                });
 
-            return this.parseResponse(response);
-        } catch (error) {
-            if (error instanceof ValidationError) {
-                throw error;
-            }
-
-            if (error instanceof AxiosError) {
-                // Handle API response errors
-                if (error.response?.data) {
-                    return ErrorHandler.handleRegisterUrlError(error.response.data);
+                return this.parseResponse(response);
+            } catch (error) {
+                if (error instanceof ValidationError) {
+                    throw error;
                 }
 
-                // Handle network errors (no response received)
-                if (error.request || error.code === 'ECONNABORTED') {
-                    throw new NetworkError('No response received from the API. Please check your network connection.');
+                if (error instanceof AxiosError) {
+                    // Handle API response errors
+                    if (error.response?.data) {
+                        return RegisterUrlErrorHandler.handle(error.response.data);
+                    }
+
+                    // Handle network errors (no response received)
+                    if (error.request || error.code === 'ECONNABORTED') {
+                        throw new NetworkError('No response received from the API. Please check your network connection.');
+                    }
+
+                    // Handle request setup errors
+                    throw new MpesaError(`Failed to register URLs: ${error.message}`);
                 }
 
-                // Handle request setup errors
-                throw new MpesaError(`Failed to register URLs: ${error.message}`);
-            }
+                // If it's already a RegisterUrlError, rethrow it
+                if (error instanceof RegisterUrlError) {
+                    throw error;
+                }
 
-            // If it's already a RegisterUrlError, rethrow it
-            if (error instanceof RegisterUrlError) {
-                throw error;
+                // For any other error, wrap it in MpesaError
+                throw new MpesaError(`Failed to register URLs: ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
             }
-
-            // For any other error, wrap it in MpesaError
-            throw new MpesaError(`Failed to register URLs: ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
-        }
+        });
     }
 }

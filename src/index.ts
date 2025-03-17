@@ -10,4 +10,4 @@ export {
     StkPushError,
     PayoutError,
     RegisterUrlError
-} from './errorHandler';
+} from './errors/ErrorHandlers';

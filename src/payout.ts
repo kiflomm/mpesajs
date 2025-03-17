@@ -1,7 +1,8 @@
 import axios from 'axios';
 import { Auth } from './auth';
-import { ErrorHandler, MpesaError } from './errorHandler';
+import { MpesaError, PayoutErrorHandler } from './errors/ErrorHandlers';
 import { randomUUID } from 'crypto';
+import { RateLimiter } from './utils/RateLimiter';
 
 /**
  * Response interface for successful B2C payout
@@ -37,6 +38,7 @@ export class Payout {
     private readonly auth: Auth;
     private readonly initiatorName: string;
     private readonly securityCredential: string;
+    private readonly rateLimiter: RateLimiter;
 
     /**
      * Creates an instance of Payout
@@ -57,6 +59,7 @@ export class Payout {
         this.baseUrl = sandbox
             ? 'https://apisandbox.safaricom.et/mpesa/b2c/v2/paymentrequest'
             : 'https://api.safaricom.et/mpesa/b2c/v2/paymentrequest';
+        this.rateLimiter = RateLimiter.getInstance();
     }
 
     /**
@@ -131,50 +134,52 @@ export class Payout {
         resultUrl: string,
         occasion?: string
     ): Promise<PayoutResponse> {
-        try {
-            // Validate inputs
-            this.validateUrls(queueTimeoutUrl, resultUrl);
-            this.validatePhoneNumber(phoneNumber);
+        return this.rateLimiter.execute(async () => {
+            try {
+                // Validate inputs
+                this.validateUrls(queueTimeoutUrl, resultUrl);
+                this.validatePhoneNumber(phoneNumber);
 
-            if (amount <= 0) {
-                throw new MpesaError('Amount must be greater than 0');
-            }
-
-            // Get access token
-            const { token: accessToken } = await this.auth.generateToken();
-
-            // Prepare and send request
-            const payload = this.buildPayload(
-                shortCode,
-                phoneNumber,
-                amount,
-                commandId,
-                remarks,
-                queueTimeoutUrl,
-                resultUrl,
-                occasion
-            );
-
-            const response = await axios.post(this.baseUrl, payload, {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json'
+                if (amount <= 0) {
+                    throw new MpesaError('Amount must be greater than 0');
                 }
-            });
 
-            // Handle successful response
-            if (response.data?.ResponseCode === '0') {
-                return {
-                    ConversationID: response.data.ConversationID,
-                    OriginatorConversationID: response.data.OriginatorConversationID,
-                    ResponseCode: response.data.ResponseCode,
-                    ResponseDescription: response.data.ResponseDescription
-                };
+                // Get access token
+                const { token: accessToken } = await this.auth.generateToken();
+
+                // Prepare and send request
+                const payload = this.buildPayload(
+                    shortCode,
+                    phoneNumber,
+                    amount,
+                    commandId,
+                    remarks,
+                    queueTimeoutUrl,
+                    resultUrl,
+                    occasion
+                );
+
+                const response = await axios.post(this.baseUrl, payload, {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                // Handle successful response
+                if (response.data?.ResponseCode === '0') {
+                    return {
+                        ConversationID: response.data.ConversationID,
+                        OriginatorConversationID: response.data.OriginatorConversationID,
+                        ResponseCode: response.data.ResponseCode,
+                        ResponseDescription: response.data.ResponseDescription
+                    };
+                }
+
+                PayoutErrorHandler.handle(response.data);
+            } catch (error) {
+                PayoutErrorHandler.handle(error);
             }
-
-            ErrorHandler.handlePayoutError(response.data);
-        } catch (error) {
-            ErrorHandler.handlePayoutError(error);
-        }
+        });
     }
 } 

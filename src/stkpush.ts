@@ -1,8 +1,9 @@
 import axios, { AxiosError } from 'axios';
 import base64 from 'base-64';
 import { Auth } from './auth';
-import { ErrorHandler, MpesaError, StkPushError, NetworkError, ValidationError } from './errorHandler';
+import { MpesaError, StkPushError, NetworkError, ValidationError, StkPushErrorHandler, ValidationErrorHandler } from './errors/ErrorHandlers';
 import crypto from 'crypto';
+import { RateLimiter } from './utils/RateLimiter';
 
 /**
  * StkPush class handles the STK Push request functionality for M-Pesa payments.
@@ -18,6 +19,7 @@ import crypto from 'crypto';
 export class StkPush {
     private auth: Auth; // Reference to the Auth class for token generation
     private baseUrl: string; // Base URL for the STK Push endpoint
+    private readonly rateLimiter: RateLimiter;
 
     /**
      * Creates an instance of StkPush.
@@ -38,8 +40,8 @@ export class StkPush {
         this.baseUrl = sandbox
             ? 'https://apisandbox.safaricom.et/mpesa/stkpush/v3/processrequest'
             : 'https://api.safaricom.et/mpesa/stkpush/v3/processrequest'
+        this.rateLimiter = RateLimiter.getInstance();
     }
-
     /**
      * Generates the password for the STK Push request.
      * 
@@ -119,97 +121,99 @@ export class StkPush {
         accountReference: string,
         transactionDesc: string
     ): Promise<any> {
-        try {
-            // Validate input parameters first
-            ErrorHandler.validateInput({
-                businessShortCode,
-                passkey,
-                amount,
-                phoneNumber,
-                callbackUrl,
-                accountReference,
-                transactionDesc
-            }, {
-                businessShortCode: (value) => typeof value === 'string' && value.length > 0,
-                passkey: (value) => typeof value === 'string' && value.length > 0,
-                amount: (value) => typeof value === 'number' && value > 0,
-                phoneNumber: (value) => /^251[7-9][0-9]{8}$/.test(value),
-                callbackUrl: (value) => value.startsWith('https://'),
-                accountReference: (value) => typeof value === 'string' && value.length <= 12,
-                transactionDesc: (value) => typeof value === 'string' && value.length <= 13
-            });
+        return this.rateLimiter.execute(async () => {
+            try {
+                // Validate input parameters first
+                ValidationErrorHandler.validateInput({
+                    businessShortCode,
+                    passkey,
+                    amount,
+                    phoneNumber,
+                    callbackUrl,
+                    accountReference,
+                    transactionDesc
+                }, {
+                    businessShortCode: (value) => typeof value === 'string' && value.length > 0,
+                    passkey: (value) => typeof value === 'string' && value.length > 0,
+                    amount: (value) => typeof value === 'number' && value > 0,
+                    phoneNumber: (value) => /^251[7-9][0-9]{8}$/.test(value),
+                    callbackUrl: (value) => value.startsWith('https://'),
+                    accountReference: (value) => typeof value === 'string' && value.length <= 12,
+                    transactionDesc: (value) => typeof value === 'string' && value.length <= 13
+                });
 
-            // Generate the timestamp and password
-            let timestamp = new Date()
-                .toISOString()
-                .replace(/[^0-9]/g, '')
-                .slice(0, 14);
-            let password = this.generatePassword(businessShortCode, passkey, timestamp);
+                // Generate the timestamp and password
+                let timestamp = new Date()
+                    .toISOString()
+                    .replace(/[^0-9]/g, '')
+                    .slice(0, 14);
+                let password = this.generatePassword(businessShortCode, passkey, timestamp);
 
-            // Generate the access token
-            const { token: accessToken } = await this.auth.generateToken();
+                // Generate the access token
+                const { token: accessToken } = await this.auth.generateToken();
 
-            businessShortCode = '1020';
-            timestamp = '20240918055823';
-            password = 'M2VkZGU2YWY1Y2RhMzIyOWRjMmFkMTRiMjdjOWIwOWUxZDFlZDZiNGQ0OGYyMDRiNjg0ZDZhNWM2NTQyNTk2ZA==';
+                businessShortCode = '1020';
+                timestamp = '20240918055823';
+                password = 'M2VkZGU2YWY1Y2RhMzIyOWRjMmFkMTRiMjdjOWIwOWUxZDFlZDZiNGQ0OGYyMDRiNjg0ZDZhNWM2NTQyNTk2ZA==';
 
-            // Prepare the request payload
-            const payload = {
-                MerchantRequestID: crypto.randomUUID().replace(/-/g, '').slice(0, 20),
-                BusinessShortCode: businessShortCode,
-                Password: password,
-                Timestamp: timestamp,
-                TransactionType: "CustomerPayBillOnline",
-                Amount: Math.round(amount), // Ensure amount is a whole number
-                PartyA: phoneNumber.replace(/^0/, '251'), // Ensure phone number starts with 251
-                PartyB: businessShortCode,
-                PhoneNumber: phoneNumber.replace(/^0/, '251'), // Ensure phone number starts with 251
-                CallBackURL: callbackUrl,
-                AccountReference: accountReference.slice(0, 12), // Limit to 12 chars
-                TransactionDesc: transactionDesc.slice(0, 13)  // Limit to 13 chars
-            };
+                // Prepare the request payload
+                const payload = {
+                    MerchantRequestID: crypto.randomUUID().replace(/-/g, '').slice(0, 20),
+                    BusinessShortCode: businessShortCode,
+                    Password: password,
+                    Timestamp: timestamp,
+                    TransactionType: "CustomerPayBillOnline",
+                    Amount: Math.round(amount), // Ensure amount is a whole number
+                    PartyA: phoneNumber.replace(/^0/, '251'), // Ensure phone number starts with 251
+                    PartyB: businessShortCode,
+                    PhoneNumber: phoneNumber.replace(/^0/, '251'), // Ensure phone number starts with 251
+                    CallBackURL: callbackUrl,
+                    AccountReference: accountReference.slice(0, 12), // Limit to 12 chars
+                    TransactionDesc: transactionDesc.slice(0, 13)  // Limit to 13 chars
+                };
 
-            // Send the STK Push request
-            const response = await axios.post(this.baseUrl, payload, {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json'
-                },
-            });
+                // Send the STK Push request
+                const response = await axios.post(this.baseUrl, payload, {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                });
 
-            // Check if the response is successful
-            if (response.data?.ResponseCode === '0') {
-                return response.data;
-            } else {
-                ErrorHandler.handleStkError(response.data);
-            }
-        } catch (error) {
-            if (error instanceof ValidationError) {
-                throw error;
-            }
-
-            if (error instanceof AxiosError) {
-                // Handle API response errors
-                if (error.response?.data) {
-                    ErrorHandler.handleStkError(error.response.data);
+                // Check if the response is successful
+                if (response.data?.ResponseCode === '0') {
+                    return response.data;
+                } else {
+                    StkPushErrorHandler.handle(response.data);
+                }
+            } catch (error) {
+                if (error instanceof ValidationError) {
+                    throw error;
                 }
 
-                // Handle network errors (no response received)
-                if (error.request || error.code === 'ECONNABORTED') {
-                    throw new NetworkError('No response received from the API. Please check your network connection.');
+                if (error instanceof AxiosError) {
+                    // Handle API response errors
+                    if (error.response?.data) {
+                        StkPushErrorHandler.handle(error.response.data);
+                    }
+
+                    // Handle network errors (no response received)
+                    if (error.request || error.code === 'ECONNABORTED') {
+                        throw new NetworkError('No response received from the API. Please check your network connection.');
+                    }
+
+                    // Handle request setup errors
+                    throw new MpesaError(`Failed to send STK Push request: ${error.message}`);
                 }
 
-                // Handle request setup errors
-                throw new MpesaError(`Failed to send STK Push request: ${error.message}`);
-            }
+                // If it's already an StkPushError, rethrow it
+                if (error instanceof StkPushError) {
+                    throw error;
+                }
 
-            // If it's already an StkPushError, rethrow it
-            if (error instanceof StkPushError) {
-                throw error;
+                // For any other error, wrap it in MpesaError
+                throw new MpesaError(`Failed to send STK Push request: ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
             }
-
-            // For any other error, wrap it in MpesaError
-            throw new MpesaError(`Failed to send STK Push request: ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
-        }
+        });
     }
 }
