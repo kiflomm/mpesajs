@@ -1,13 +1,11 @@
 import axios, { AxiosError } from 'axios';
 import { Auth } from './auth';
-import { MpesaError, PayoutErrorHandler } from './errors/ErrorHandlers';
+import { PayoutErrorHandler, ValidationError } from './errors/ErrorHandlers';
 import { randomUUID } from 'crypto';
 import { RateLimiter } from './utils/RateLimiter';
 import { getEnvVar } from './utils/env';
 
-/**
- * Response interface for successful B2C payout
- */
+
 interface PayoutResponse {
     ConversationID: string;            // Unique identifier for tracking the transaction
     OriginatorConversationID: string;  // The unique request identifier from your system
@@ -30,10 +28,6 @@ interface PayoutPayload {
     ResultURL: string;                // URL for receiving transaction results
 }
 
-/**
- * Class to handle M-Pesa B2C payment functionality
- * Allows businesses to send money to customers
- */
 export class Payout {
     private readonly baseUrl: string;
     private readonly auth: Auth;
@@ -69,21 +63,30 @@ export class Payout {
      * @param resultUrl - URL for result notifications
      */
     private validateUrls(queueTimeoutUrl: string, resultUrl: string): void {
-        if (!queueTimeoutUrl.startsWith('https://') || !resultUrl.startsWith('https://')) {
-            throw new MpesaError('Both queue timeout and result URLs must use HTTPS protocol');
+        const urlParams = {
+            queueTimeoutUrl,
+            resultUrl
+        };
+        if (!Object.values(urlParams).every(url => url.startsWith('https://'))) {
+            const invalidUrls = Object.entries(urlParams)
+                .filter(([_, url]) => !url.startsWith('https://'))
+                .map(([param, url]) => `${param}: ${url}`);
+
+            throw new ValidationError('Both queue timeout and result URLs must use HTTPS protocol', invalidUrls.join(', '));
         }
     }
 
-    /**
-     * Validates the phone number format
-     * @param phoneNumber - Customer's phone number
-     */
     private validatePhoneNumber(phoneNumber: string): void {
         if (!phoneNumber.match(/^251[7-9][0-9]{8}$/)) {
-            throw new MpesaError('Phone number must start with 251 and be 12 digits long');
+            throw new ValidationError('Phone number must start with 251 and be 12 digits long', 'phoneNumber');
         }
     }
 
+    private validateAmount(amount: number): void {
+        if (amount <= 0) {
+            throw new ValidationError('Amount must be greater than 0', 'amount');
+        }
+    }
     /**
      * Builds the payload for payout request
      */
@@ -112,38 +115,23 @@ export class Payout {
         };
     }
 
-    /**
-     * Sends money to a customer's M-Pesa account
-     * @param shortCode - Organization's shortcode
-     * @param phoneNumber - Customer's phone number (must start with 251)
-     * @param amount - Amount to send
-     * @param commandId - Type of payment (BusinessPayment, SalaryPayment, or PromotionPayment)
-     * @param remarks - Comments about the transaction
-     * @param queueTimeoutUrl - URL for timeout notifications
-     * @param resultUrl - URL for result notifications
-     * @param occasion - Optional additional comments
-     * @returns Promise containing the payout response
-     * @throws MpesaError if the request fails
-     */
     public async send(
         amount: number,
         remarks: string,
+        occasion: string = 'Payout',
+        commandId: PayoutPayload['CommandID'] = getEnvVar('MPESA_PAYOUT_COMMAND_ID', '') as PayoutPayload['CommandID'],
         shortCode: string = getEnvVar('MPESA_BUSINESS_SHORTCODE', ''),
         phoneNumber: string = getEnvVar('MPESA_PHONE_NUMBER', ''),
-        commandId: PayoutPayload['CommandID'] = getEnvVar('MPESA_PAYOUT_COMMAND_ID', 'BusinessPayment') as PayoutPayload['CommandID'],
         queueTimeoutUrl: string = getEnvVar('MPESA_QUEUE_TIMEOUT_URL', ''),
         resultUrl: string = getEnvVar('MPESA_RESULT_URL', ''),
-        occasion: string = 'Payout',
     ): Promise<PayoutResponse> {
         return this.rateLimiter.execute(async () => {
             try {
+
                 // Validate inputs
                 this.validateUrls(queueTimeoutUrl, resultUrl);
                 this.validatePhoneNumber(phoneNumber);
-
-                if (amount <= 0) {
-                    throw new MpesaError('Amount must be greater than 0');
-                }
+                this.validateAmount(amount);
 
                 // Get access token
                 const { token: accessToken } = await this.auth.generateToken();
@@ -177,13 +165,15 @@ export class Payout {
                     };
                 }
 
-
                 PayoutErrorHandler.handle(response.data);
             } catch (error) {
-                if (error instanceof AxiosError) {
-                    // PayoutErrorHandler.handle(error.response?.data);
+                if (error instanceof ValidationError) {
+                    throw error;
                 }
-                PayoutErrorHandler.handle(error);
+                if (error instanceof AxiosError) {
+                    PayoutErrorHandler.handle(error.response?.data);
+                }
+                throw error;
             }
         });
     }
