@@ -1,63 +1,5 @@
 // Import required dependencies
 import { Auth, RegisterUrl, RegisterUrlError, NetworkError, ValidationError, AuthenticationError } from 'mpesajs';
-import dotenv from 'dotenv';
-
-// Load environment variables from .env file
-dotenv.config();
-
-/**
- * Interface for URL registration configuration
- */
-interface UrlRegistrationConfig {
-    consumerKey: string;
-    consumerSecret: string;
-    shortCode: string;
-    responseType: 'Completed' | 'Cancelled';
-    confirmationUrl: string;
-    validationUrl: string;
-}
-
-/**
- * Validates URL registration configuration
- * @param config Configuration to validate
- * @throws ValidationError if any required field is missing or invalid
- */
-function validateConfig(config: UrlRegistrationConfig): void {
-    // Check required fields
-    const requiredFields = ['consumerKey', 'consumerSecret', 'shortCode', 'confirmationUrl', 'validationUrl'];
-    for (const field of requiredFields) {
-        if (!config[field as keyof UrlRegistrationConfig]) {
-            throw new ValidationError(`${field} is required`, field);
-        }
-    }
-
-    // Validate URLs
-    if (!config.confirmationUrl.startsWith('https://')) {
-        throw new ValidationError('Confirmation URL must use HTTPS protocol', 'confirmationUrl');
-    }
-    if (!config.validationUrl.startsWith('https://')) {
-        throw new ValidationError('Validation URL must use HTTPS protocol', 'validationUrl');
-    }
-}
-
-/**
- * Loads URL registration configuration from environment variables
- * @returns Configuration object for URL registration
- * @throws ValidationError if required environment variables are missing
- */
-function loadConfig(): UrlRegistrationConfig {
-    const config = {
-        consumerKey: process.env.CONSUMER_KEY || '',
-        consumerSecret: process.env.CONSUMER_SECRET || '',
-        shortCode: process.env.BUSINESS_SHORTCODE || '',
-        responseType: (process.env.RESPONSE_TYPE || 'Completed') as 'Completed' | 'Cancelled',
-        confirmationUrl: process.env.CONFIRMATION_URL || 'https://example.com/confirmation',
-        validationUrl: process.env.VALIDATION_URL || 'https://example.com/validation'
-    };
-
-    validateConfig(config);
-    return config;
-}
 
 /**
  * Registers URLs with M-Pesa API
@@ -69,21 +11,14 @@ function loadConfig(): UrlRegistrationConfig {
  */
 async function registerUrls(): Promise<void> {
     try {
-        // Load and validate configuration
-        const config = loadConfig();
 
         // Initialize M-Pesa client with authentication
-        const auth = new Auth(config.consumerKey, config.consumerSecret);
-        const register = new RegisterUrl(config.consumerKey, true);
+        // Using default values from environment variables
+        const auth = new Auth();
+        const register = new RegisterUrl();
 
         // Register URLs
-        const response = await register.register(
-            config.shortCode,
-            config.responseType,
-            'RegisterURL',
-            config.confirmationUrl,
-            config.validationUrl
-        );
+        const response = await register.register();
 
         console.log('URLs registered successfully:', {
             responseCode: response.responseCode,

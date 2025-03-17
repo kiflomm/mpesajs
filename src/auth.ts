@@ -1,6 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import base64 from 'base-64';
-import { MpesaError, AuthenticationError, AuthenticationErrorHandler } from './errors/ErrorHandlers';
+import { getEnvVar } from './utils/env';
+import { MpesaError, AuthenticationError, AuthenticationErrorHandler, } from './errors/ErrorHandlers';
 import { RateLimiter } from './utils/RateLimiter';
 
 /**
@@ -29,10 +30,14 @@ export class Auth {
      * @param consumerKey - The consumer key obtained from M-Pesa developer portal
      * @param consumerSecret - The consumer secret obtained from M-Pesa developer portal
      * @param sandbox - Boolean flag to determine environment:
-     *                  true for sandbox/testing environment (default)
+     *                  true for sandbox/testing environment
      *                  false for production environment
      */
-    constructor(consumerKey: string, consumerSecret: string, sandbox: boolean = true) {
+    constructor(
+        consumerKey: string = getEnvVar('MPESA_CONSUMER_KEY', ''),
+        consumerSecret: string = getEnvVar('MPESA_CONSUMER_SECRET', ''),
+        sandbox: boolean = getEnvVar('MPESA_SANDBOX', 'true').toLowerCase() === 'true'
+    ) {
         this.consumerKey = consumerKey;
         this.consumerSecret = consumerSecret;
         this.baseUrl = sandbox

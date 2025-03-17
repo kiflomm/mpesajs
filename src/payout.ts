@@ -1,8 +1,9 @@
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import { Auth } from './auth';
 import { MpesaError, PayoutErrorHandler } from './errors/ErrorHandlers';
 import { randomUUID } from 'crypto';
 import { RateLimiter } from './utils/RateLimiter';
+import { getEnvVar } from './utils/env';
 
 /**
  * Response interface for successful B2C payout
@@ -45,13 +46,13 @@ export class Payout {
      * @param auth - Instance of Auth class for token generation
      * @param initiatorName - Name of the initiator making the request
      * @param securityCredential - Encrypted security credential
-     * @param sandbox - Whether to use sandbox environment (default: true)
+     * @param sandbox - Whether to use sandbox environment
      */
     constructor(
         auth: Auth,
-        initiatorName: string,
-        securityCredential: string,
-        sandbox: boolean = true
+        initiatorName: string = getEnvVar('MPESA_INITIATOR_NAME', ''),
+        securityCredential: string = getEnvVar('MPESA_SECURITY_CREDENTIAL', ''),
+        sandbox: boolean = getEnvVar('MPESA_SANDBOX', 'true').toLowerCase() === 'true'
     ) {
         this.auth = auth;
         this.initiatorName = initiatorName;
@@ -87,14 +88,14 @@ export class Payout {
      * Builds the payload for payout request
      */
     private buildPayload(
+        amount: number,
+        remarks: string,
+        occasion: string,
+        commandId: PayoutPayload['CommandID'],
         shortCode: string,
         phoneNumber: string,
-        amount: number,
-        commandId: PayoutPayload['CommandID'],
-        remarks: string,
         queueTimeoutUrl: string,
         resultUrl: string,
-        occasion?: string
     ): PayoutPayload {
         return {
             OriginatorConversationID: `Partner name -${randomUUID()}`,
@@ -125,14 +126,14 @@ export class Payout {
      * @throws MpesaError if the request fails
      */
     public async send(
-        shortCode: string,
-        phoneNumber: string,
         amount: number,
-        commandId: PayoutPayload['CommandID'] = 'BusinessPayment',
         remarks: string,
-        queueTimeoutUrl: string,
-        resultUrl: string,
-        occasion?: string
+        shortCode: string = getEnvVar('MPESA_BUSINESS_SHORTCODE', ''),
+        phoneNumber: string = getEnvVar('MPESA_PHONE_NUMBER', ''),
+        commandId: PayoutPayload['CommandID'] = getEnvVar('MPESA_PAYOUT_COMMAND_ID', 'BusinessPayment') as PayoutPayload['CommandID'],
+        queueTimeoutUrl: string = getEnvVar('MPESA_QUEUE_TIMEOUT_URL', ''),
+        resultUrl: string = getEnvVar('MPESA_RESULT_URL', ''),
+        occasion: string = 'Payout',
     ): Promise<PayoutResponse> {
         return this.rateLimiter.execute(async () => {
             try {
@@ -149,14 +150,14 @@ export class Payout {
 
                 // Prepare and send request
                 const payload = this.buildPayload(
+                    amount,
+                    remarks,
+                    occasion,
+                    commandId,
                     shortCode,
                     phoneNumber,
-                    amount,
-                    commandId,
-                    remarks,
                     queueTimeoutUrl,
                     resultUrl,
-                    occasion
                 );
 
                 const response = await axios.post(this.baseUrl, payload, {
@@ -176,8 +177,12 @@ export class Payout {
                     };
                 }
 
+
                 PayoutErrorHandler.handle(response.data);
             } catch (error) {
+                if (error instanceof AxiosError) {
+                    // PayoutErrorHandler.handle(error.response?.data);
+                }
                 PayoutErrorHandler.handle(error);
             }
         });

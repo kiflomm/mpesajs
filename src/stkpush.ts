@@ -4,6 +4,7 @@ import { Auth } from './auth';
 import { MpesaError, StkPushError, NetworkError, ValidationError, StkPushErrorHandler, ValidationErrorHandler } from './errors/ErrorHandlers';
 import crypto from 'crypto';
 import { RateLimiter } from './utils/RateLimiter';
+import { getEnvVar } from './utils/env';
 
 /**
  * StkPush class handles the STK Push request functionality for M-Pesa payments.
@@ -26,7 +27,7 @@ export class StkPush {
      * 
      * @param auth - An instance of the Auth class for token generation.
      *               This is used to obtain access tokens for API authentication.
-     * @param sandbox - Whether to use the sandbox environment (default: true).
+     * @param sandbox - Whether to use the sandbox environment.
      *                 Set to false for production environment.
      * 
      * @example
@@ -35,7 +36,7 @@ export class StkPush {
      * const stkPush = new StkPush(auth, true); // For sandbox environment
      * ```
      */
-    constructor(auth: Auth, sandbox: boolean = true) {
+    constructor(auth: Auth, sandbox: boolean = getEnvVar('MPESA_SANDBOX', 'true').toLowerCase() === 'true') {
         this.auth = auth;
         this.baseUrl = sandbox
             ? 'https://apisandbox.safaricom.et/mpesa/stkpush/v3/processrequest'

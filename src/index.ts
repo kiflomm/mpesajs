@@ -11,3 +11,4 @@ export {
     PayoutError,
     RegisterUrlError
 } from './errors/ErrorHandlers';
+export { getEnvVar } from './utils/env';

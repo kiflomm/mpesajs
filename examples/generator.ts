@@ -1,7 +1,4 @@
 import { Auth, AuthenticationError, NetworkError, ValidationError } from 'mpesajs';
-import dotenv from 'dotenv';
-
-dotenv.config();
 
 /**
  * Response type for token generation
@@ -21,14 +18,8 @@ interface TokenResponse {
  */
 async function generateMpesaToken(): Promise<TokenResponse> {
     try {
-        const consumerKey = process.env.CONSUMER_KEY;
-        const consumerSecret = process.env.CONSUMER_SECRET;
-
-        if (!consumerKey || !consumerSecret) {
-            throw new ValidationError('Consumer key and secret are required', 'credentials');
-        }
-
-        const auth = new Auth(consumerKey, consumerSecret);
+        // Create Auth instance without parameters, using environment variables
+        const auth = new Auth();
         const token = await auth.generateToken();
 
         console.log('Token generated successfully:', {

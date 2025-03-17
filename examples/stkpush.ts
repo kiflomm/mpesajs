@@ -1,9 +1,9 @@
 // Import required dependencies from mpesajs library and dotenv
 import { Auth, StkPush, StkPushError, NetworkError, ValidationError, AuthenticationError, MpesaError } from 'mpesajs';
-import dotenv from 'dotenv';
+import { getEnvVar } from '../src/utils/env';
 
 // Load environment variables from .env file into process.env
-dotenv.config();
+// This is now handled by the env.ts utility functions
 
 /**
  * Interface defining required M-Pesa API configuration settings
@@ -81,11 +81,11 @@ function validatePaymentDetails(details: PaymentDetails): void {
  */
 function loadMpesaConfig(): MpesaConfig {
     const config = {
-        consumerKey: process.env.CONSUMER_KEY || '',
-        consumerSecret: process.env.CONSUMER_SECRET || '',
-        sandbox: process.env.SANDBOX === 'false' ? false : true,
-        businessShortCode: process.env.BUSINESS_SHORTCODE || '',
-        passkey: process.env.PASSKEY || ''
+        consumerKey: getEnvVar('CONSUMER_KEY', ''),
+        consumerSecret: getEnvVar('CONSUMER_SECRET', ''),
+        sandbox: getEnvVar('SANDBOX', 'true').toLowerCase() === 'true' || getEnvVar('SANDBOX', 'true') === '1',
+        businessShortCode: getEnvVar('BUSINESS_SHORTCODE', ''),
+        passkey: getEnvVar('PASSKEY', '')
     };
 
     validateConfig(config);
@@ -99,11 +99,11 @@ function loadMpesaConfig(): MpesaConfig {
  */
 function createPaymentDetails(): PaymentDetails {
     const details = {
-        amount: Number(process.env.MPESA_TEST_AMOUNT) || 20,
-        phoneNumber: process.env.MPESA_TEST_PHONE || '251700404709',
-        callbackUrl: process.env.MPESA_CALLBACK_URL || 'https://www.myservice:8080/result',
-        reference: process.env.MPESA_TEST_REFERENCE || 'INV001233423',
-        description: process.env.MPESA_TEST_DESCRIPTION || 'max 13 chars'
+        amount: parseInt(getEnvVar('MPESA_TEST_AMOUNT', '20'), 10),
+        phoneNumber: getEnvVar('MPESA_TEST_PHONE', '251700404709'),
+        callbackUrl: getEnvVar('MPESA_CALLBACK_URL', 'https://www.myservice:8080/result'),
+        reference: getEnvVar('MPESA_TEST_REFERENCE', 'INV001233423'),
+        description: getEnvVar('MPESA_TEST_DESCRIPTION', 'max 13 chars')
     };
 
     validatePaymentDetails(details);
@@ -125,7 +125,9 @@ async function initiatePayment(): Promise<void> {
         const config = loadMpesaConfig();
 
         // Initialize M-Pesa client with authentication
-        const mpesa = new StkPush(new Auth(config.consumerKey, config.consumerSecret, config.sandbox));
+        // Using default values from environment variables
+        const auth = new Auth();
+        const mpesa = new StkPush(auth);
 
         // Get and validate payment details
         const paymentDetails = createPaymentDetails();
@@ -206,7 +208,7 @@ async function initiatePayment(): Promise<void> {
 initiatePayment()
     .catch(error => {
         // Log the error stack trace in development environment
-        if (process.env.NODE_ENV === 'development') {
+        if (getEnvVar('NODE_ENV', '') === 'development') {
             console.error('Stack trace:', error.stack);
         }
         process.exit(1);

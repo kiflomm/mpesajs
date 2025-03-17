@@ -2,6 +2,7 @@ import { AxiosError } from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
+import { getEnvVar } from './env';
 
 /**
  * Configuration for retry behavior when requests fail
@@ -23,28 +24,19 @@ interface RateLimitConfig {
 
 /**
  * Gets configuration from environment variables with fallbacks
- * Prioritizes reading from .env.mpesajs before falling back to .env
+ * Parses string values from environment variables into appropriate types
  */
 function getConfigFromEnv(): { retryConfig: RetryConfig; rateLimitConfig: RateLimitConfig } {
-    // Try to load .env.mpesajs first
-    const mpesajsPath = path.resolve(process.cwd(), '.env.mpesajs');
-    if (fs.existsSync(mpesajsPath)) {
-        dotenv.config({ path: mpesajsPath });
-    } else {
-        // Fall back to .env if .env.mpesajs doesn't exist
-        dotenv.config();
-    }
-
     return {
         retryConfig: {
-            maxRetries: parseInt(process.env.MPESAJS_MAX_RETRIES || '3', 10),
-            initialDelayMs: parseInt(process.env.MPESAJS_INITIAL_DELAY_MS || '1000', 10),
-            maxDelayMs: parseInt(process.env.MPESAJS_MAX_DELAY_MS || '10000', 10),
-            backoffFactor: parseInt(process.env.MPESAJS_BACKOFF_FACTOR || '2', 10)
+            maxRetries: parseInt(getEnvVar('MPESAJS_MAX_RETRIES', '3'), 10),
+            initialDelayMs: parseInt(getEnvVar('MPESAJS_INITIAL_DELAY_MS', '1000'), 10),
+            maxDelayMs: parseInt(getEnvVar('MPESAJS_MAX_DELAY_MS', '10000'), 10),
+            backoffFactor: parseInt(getEnvVar('MPESAJS_BACKOFF_FACTOR', '2'), 10)
         },
         rateLimitConfig: {
-            maxConcurrent: parseInt(process.env.MPESAJS_MAX_CONCURRENT || '1000', 10),
-            timeWindowMs: parseInt(process.env.MPESAJS_TIME_WINDOW_MS || '60000', 10)
+            maxConcurrent: parseInt(getEnvVar('MPESAJS_MAX_CONCURRENT', '1000'), 10),
+            timeWindowMs: parseInt(getEnvVar('MPESAJS_TIME_WINDOW_MS', '60000'), 10)
         }
     };
 }

@@ -10,19 +10,23 @@ const TEST_ENV = {
     MPESA_PASSKEY: '5ab0ecb13d56a1818f182cbe463b84370c3768a5f3e355aa1dd706043d722dee',
     MPESA_PHONE_NUMBER: '251700404709',
 
-    // Related to register url
+
     MPESA_CONFIRMATION_URL: 'https://innovation.tugza.tech/',
-    MPESA_VALIDATION_URL: 'http://bank.tugza.tech/',
+    MPESA_VALIDATION_URL: 'https://bank.tugza.tech/',
 
-    // Related to authentication
+
     MPESA_INITIATOR_NAME: 'apitest',
-    MPESA_SECURITY_CREDENTIAL: 'lMhf0UqE4ydeEDwpUskmPgkNDZnA6NLi7z3T1TQuWCkH3',
+    MPESA_SECURITY_CREDENTIAL: 'lMhf0UqE4ydeEDwpUskmPgkNDZnA6NLi7z3T1TQuWCkH3/ScW8pRRnobq/AcwFvbC961+zDMgOEYGm8Oivb7L/7Y9ED3lhR7pJvnH8B1wYis5ifdeeWI6XE2NSq8X1Tc7QB9Dg8SlPEud3tgloB2DlT+JIv3ebIl/J/8ihGVrq499bt1pz/EA2nzkCtGeHRNbEDxkqkEnbioV0OM//0bv4K++XyV6jUFlIIgkDkmcK6aOU8mPBHs2um9aP+Y+nTJaa6uHDudRFg0+3G6gt1zRCPs8AYbts2IebseBGfZKv5K6Lqk9/W8657gEkrDZE8Mi78MVianqHdY/8d6D9KKhw==',
 
-    // Related to queue timeout url
+
     MPESA_QUEUE_TIMEOUT_URL: 'https://innovation.tugza.tech/',
 
-    // Related to result url
+
     MPESA_RESULT_URL: 'https://bank.tugza.tech/',
+
+    MPESA_PAYOUT_COMMAND_ID: 'BusinessPayment',
+    MPESA_REGISTER_URL_COMMAND_ID: 'RegisterURL',
+    MPESA_REGISTER_URL_RESPONSE_TYPE: 'Completed',
 
     // Related to rate limiting
     MPESAJS_MAX_RETRIES: '3',
@@ -30,7 +34,9 @@ const TEST_ENV = {
     MPESAJS_MAX_DELAY_MS: '10000',
     MPESAJS_BACKOFF_FACTOR: '2',
     MPESAJS_MAX_CONCURRENT: '1000',
-    MPESAJS_TIME_WINDOW_MS: '60000'
+    MPESAJS_TIME_WINDOW_MS: '60000',
+
+
 };
 
 const LIVE_ENV = {
@@ -55,6 +61,11 @@ const LIVE_ENV = {
 
     // Related to result url
     MPESA_RESULT_URL: 'your_live_result_url',
+
+
+    MPESA_PAYOUT_COMMAND_ID: 'BusinessPayment',
+    MPESA_REGISTER_URL_COMMAND_ID: 'RegisterURL',
+    MPESA_REGISTER_URL_RESPONSE_TYPE: 'Completed',
 
     // Related to rate limiting
     MPESAJS_MAX_RETRIES: '3',
