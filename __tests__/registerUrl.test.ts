@@ -1,8 +1,8 @@
 // Import required dependencies
 import axios, { AxiosError } from 'axios';
 import { RegisterUrl } from '../src/registerUrl';
-import { MpesaError, ValidationError, NetworkError, RegisterUrlError } from '../src/errors/ErrorHandlers';
-
+import { MpesaError, NetworkError } from '../src/errors/ErrorHandlers';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 // Mock axios module
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;

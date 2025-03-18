@@ -2,7 +2,7 @@
 import axios, { AxiosError } from 'axios';
 import { Auth } from '../src/auth';
 import { MpesaError, AuthenticationError } from '../src/errors/ErrorHandlers';
-
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 // Mock the axios module to control API responses in tests
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;

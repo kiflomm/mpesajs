@@ -39,7 +39,7 @@
   "bugs": {
     "url": "https://github.com/kiflomm/mpesajs/issues"
   },
-  "homepage": "https://github.com/kiflomm/mpesajs#readme",
+  "homepage": "https://docs-mpesajs.vercel.app",
   "devDependencies": {
     "@types/base-64": "^1.0.2",
     "@types/jest": "^29.5.14",

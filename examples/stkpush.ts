@@ -207,9 +207,5 @@ async function initiatePayment(): Promise<void> {
 // Execute the payment initiation with proper error handling
 initiatePayment()
     .catch(error => {
-        // Log the error stack trace in development environment
-        if (getEnvVar('NODE_ENV', '') === 'development') {
-            console.error('Stack trace:', error.stack);
-        }
         process.exit(1);
     });

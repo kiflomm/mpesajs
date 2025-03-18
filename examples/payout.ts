@@ -51,6 +51,3 @@ async function initiatePayout(): Promise<void> {
 
 // Execute the payout
 initiatePayout()
-    .catch(error => {
-        process.exit(1);
-    }); 
