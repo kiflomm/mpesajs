@@ -153,16 +153,45 @@ initiatePayout();
 
 ### STK Push
 
-Send an STK Push request to a customer's phone:
+Send an STK Push request to a customer's phone to initiate M-Pesa payments. The SDK provides robust validation, error handling, and rate limiting for STK Push requests.
 
 ```typescript
 import { Auth, StkPush } from 'mpesajs';
 
 async function sendStkPush() {
   const auth = new Auth();
-    const stkPush = new StkPush(auth);
-    const response = await stkPush.sendStkPush('123456', 'passkey', 100, '251700000000', 'https://callback.url', 'INV123', 'Payment');
-    console.log('STK Push response:', response);
+  const stkPush = new StkPush(auth);
+  
+  try {
+    const response = await stkPush.sendStkPush(
+      '174379',                              // Business Shortcode
+      'your-passkey',                        // Passkey from M-Pesa
+      100,                                   // Amount in ETB
+      '251700000000',                        // Customer Phone Number
+      'https://callback.url/endpoint',       // HTTPS Callback URL
+      'INV123',                              // Account Reference (max 12 chars)
+      'Payment'                              // Transaction Description (max 13 chars)
+    );
+    
+    console.log('STK Push Response:', {
+      MerchantRequestID: response.MerchantRequestID,
+      CheckoutRequestID: response.CheckoutRequestID,
+      ResponseDescription: response.ResponseDescription
+    });
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      // Handle validation errors (phone number, amount, URLs, etc.)
+      console.error('Validation failed:', error.message);
+    } else if (error instanceof StkPushError) {
+      // Handle M-Pesa API specific errors
+      console.error('STK Push failed:', error.message);
+    } else if (error instanceof NetworkError) {
+      // Handle network connectivity issues
+      console.error('Network error:', error.message);
+    } else {
+      console.error('Unexpected error:', error);
+    }
+  }
 }
 
 sendStkPush();

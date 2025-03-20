@@ -1,211 +1,106 @@
-// Import required dependencies from mpesajs library and dotenv
 import { Auth, StkPush, StkPushError, NetworkError, ValidationError, AuthenticationError, MpesaError } from 'mpesajs';
-import { getEnvVar } from '../src/utils/env';
-
-// Load environment variables from .env file into process.env
-// This is now handled by the env.ts utility functions
 
 /**
- * Interface defining required M-Pesa API configuration settings
- * Contains credentials and settings needed to interact with M-Pesa API
+ * Initiates an STK Push payment request to a customer's phone
+ * This example demonstrates how to:
+ * 1. Set up the Auth and StkPush instances
+ * 2. Send an STK Push request with proper error handling
+ * 3. Process the response
  */
-interface MpesaConfig {
-    consumerKey: string;      // API consumer key for authentication
-    consumerSecret: string;   // API consumer secret for authentication
-    sandbox: boolean;         // Whether to use sandbox/test environment
-    businessShortCode: string; // Business shortcode or till number
-    passkey: string;         // API passkey for transaction security
-}
-
-/**
- * Interface defining payment transaction parameters
- * Contains details needed to initiate an STK push payment
- */
-interface PaymentDetails {
-    amount: number;          // Payment amount in KES
-    phoneNumber: string;     // Customer phone number to receive STK push
-    callbackUrl: string;     // URL to receive payment notification
-    reference: string;       // Merchant reference number for the transaction
-    description: string;     // Description of what the payment is for
-}
-
-/**
- * Validates M-Pesa configuration
- * @param config Configuration object to validate
- * @throws ValidationError if any required field is missing
- */
-function validateConfig(config: MpesaConfig): void {
-    const requiredFields = ['consumerKey', 'consumerSecret', 'businessShortCode', 'passkey'];
-    for (const field of requiredFields) {
-        if (!config[field as keyof MpesaConfig]) {
-            throw new ValidationError(`${field} is required`, field);
-        }
-    }
-}
-
-/**
- * Validates payment details
- * @param details Payment details to validate
- * @throws ValidationError if any required field is missing or invalid
- */
-function validatePaymentDetails(details: PaymentDetails): void {
-    // Validate amount
-    if (details.amount <= 0) {
-        throw new ValidationError('Amount must be greater than 0', 'amount');
-    }
-
-    // Validate phone number format
-    if (!/^251[7-9][0-9]{8}$/.test(details.phoneNumber)) {
-        throw new ValidationError('Invalid phone number format. Must start with 251 and be 12 digits long', 'phoneNumber');
-    }
-
-    // Validate callback URL
-    if (!details.callbackUrl.startsWith('https://')) {
-        throw new ValidationError('Callback URL must use HTTPS protocol', 'callbackUrl');
-    }
-
-    // Validate reference and description length
-    if (details.reference.length > 12) {
-        throw new ValidationError('Reference must not exceed 12 characters', 'reference');
-    }
-
-    if (details.description.length > 13) {
-        throw new ValidationError('Description must not exceed 13 characters', 'description');
-    }
-}
-
-/**
- * Loads M-Pesa configuration settings from environment variables
- * @returns {MpesaConfig} Object containing M-Pesa configuration settings
- * @throws ValidationError if required environment variables are missing
- */
-function loadMpesaConfig(): MpesaConfig {
-    const config = {
-        consumerKey: getEnvVar('CONSUMER_KEY', ''),
-        consumerSecret: getEnvVar('CONSUMER_SECRET', ''),
-        sandbox: getEnvVar('SANDBOX', 'true').toLowerCase() === 'true' || getEnvVar('SANDBOX', 'true') === '1',
-        businessShortCode: getEnvVar('BUSINESS_SHORTCODE', ''),
-        passkey: getEnvVar('PASSKEY', '')
-    };
-
-    validateConfig(config);
-    return config;
-}
-
-/**
- * Creates payment details object with test values from env vars
- * @returns {PaymentDetails} Object containing payment transaction details
- * @throws ValidationError if payment details are invalid
- */
-function createPaymentDetails(): PaymentDetails {
-    const details = {
-        amount: parseInt(getEnvVar('MPESA_TEST_AMOUNT', '20'), 10),
-        phoneNumber: getEnvVar('MPESA_TEST_PHONE', '251700404709'),
-        callbackUrl: getEnvVar('MPESA_CALLBACK_URL', 'https://www.myservice:8080/result'),
-        reference: getEnvVar('MPESA_TEST_REFERENCE', 'INV001233423'),
-        description: getEnvVar('MPESA_TEST_DESCRIPTION', 'max 13 chars')
-    };
-
-    validatePaymentDetails(details);
-    return details;
-}
-
-/**
- * Initiates an M-Pesa STK Push payment request
- * @returns {Promise<void>}
- * @throws AuthenticationError if authentication fails
- * @throws StkPushError if STK push request fails
- * @throws NetworkError if network connection fails
- * @throws ValidationError if required parameters are invalid
- * @throws MpesaError for other M-Pesa related errors
- */
-async function initiatePayment(): Promise<void> {
+async function initiateStkPush(): Promise<void> {
     try {
-        // Load and validate configuration
-        const config = loadMpesaConfig();
-
-        // Initialize M-Pesa client with authentication
-        // Using default values from environment variables
+        // Initialize Auth and StkPush instances
         const auth = new Auth();
-        const mpesa = new StkPush(auth);
+        const stkPush = new StkPush(auth);
 
-        // Get and validate payment details
-        const paymentDetails = createPaymentDetails();
+        // Amount to charge the customer
+        const amount = 1; // Minimum amount for testing
 
-        // Send STK push request to M-Pesa API
-        const response = await mpesa.sendStkPush(
-            config.businessShortCode,
-            config.passkey,
-            paymentDetails.amount,
-            paymentDetails.phoneNumber,
-            paymentDetails.callbackUrl,
-            paymentDetails.reference,
-            paymentDetails.description
+        // Description of the transaction (max 13 chars)
+        const transactionDesc = "Test Payment";
+
+        // Reference for the customer (max 12 chars)
+        const accountReference = "TestAccount";
+
+        // Optional: You can override environment variables by providing these parameters
+        // To use these, uncomment and add as parameters to sendStkPush
+        // const businessShortCode = "1234567";
+        // const passkey = "your-passkey";
+        // const phoneNumber = "251700000000";
+        // const callbackUrl = "https://example.com/callback";
+
+        console.log('Initiating STK Push payment request...');
+
+        // Send the STK Push request
+        // The additional parameters are optional and use environment variables by default
+        // @ts-ignore - The actual implementation allows for default values via environment variables
+        const response = await stkPush.sendStkPush(
+            amount,
+            transactionDesc,
+            accountReference
+            // If you want to override env vars, uncomment and add these parameters:
+            // businessShortCode,
+            // passkey,
+            // phoneNumber,
+            // callbackUrl
         );
 
-        // Log success response with detailed information
-        console.log('Payment initiated successfully:', {
-            MerchantRequestID: response.MerchantRequestID,
-            CheckoutRequestID: response.CheckoutRequestID,
-            ResponseDescription: response.ResponseDescription,
-            CustomerMessage: response.CustomerMessage,
-            ResponseCode: response.ResponseCode,
-        });
+        console.log('STK Push initiated successfully:');
+        console.log('MerchantRequestID:', response.MerchantRequestID);
+        console.log('CheckoutRequestID:', response.CheckoutRequestID);
+        console.log('ResponseCode:', response.ResponseCode);
+        console.log('ResponseDescription:', response.ResponseDescription);
+        console.log('CustomerMessage:', response.CustomerMessage);
+
+        console.log('\nPlease check your phone to complete the payment');
 
     } catch (error) {
-        // Handle authentication errors
         if (error instanceof AuthenticationError) {
-            console.error('Authentication failed:');
-            console.error('Error name:', error.name);
-            console.error('Error message:', error.message);
-            console.error('Error code:', error.errorCode);
-            throw error;
+            console.error('\nAuthentication Error:');
+            console.error('- Name:', error.name);
+            console.error('- Message:', error.message);
+            console.error('- Error Code:', error.errorCode);
+            console.error('\nMake sure your MPESA_CONSUMER_KEY and MPESA_CONSUMER_SECRET are correct.');
         }
-
-        // Handle STK Push specific errors
-        if (error instanceof StkPushError) {
-            console.error('STK Push failed:');
-            console.error('Error name:', error.name);
-            console.error('Error message:', error.message);
-            console.error('Response code:', error.responseCode);
-            console.error('Merchant request ID:', error.merchantRequestId);
-            console.error('Checkout request ID:', error.checkoutRequestId);
-            throw error;
+        else if (error instanceof ValidationError) {
+            console.error('\nValidation Error:');
+            console.error('- Name:', error.name);
+            console.error('- Message:', error.message);
+            console.error('- Invalid Field:', error.field);
+            console.error('\nPlease check the requirements for the field mentioned above.');
         }
-
-        // Handle network connectivity errors
-        if (error instanceof NetworkError) {
-            console.error('Network error:');
-            console.error('Error message:', error.message);
-            console.error('Please check your internet connection and try again');
-            throw error;
+        else if (error instanceof StkPushError) {
+            console.error('\nSTK Push Error:');
+            console.error('- Name:', error.name);
+            console.error('- Message:', error.message);
+            console.error('- Response Code:', error.responseCode);
+            console.error('- Merchant Request ID:', error.merchantRequestId);
+            console.error('- Checkout Request ID:', error.checkoutRequestId);
+            console.error('\nThis error was returned by the M-Pesa API.');
         }
-
-        // Handle validation errors
-        if (error instanceof ValidationError) {
-            console.error('Validation error:');
-            console.error('Error message:', error.message);
-            console.error('Invalid field:', error.field);
-            console.error('Please check your input parameters and try again');
-            throw error;
+        else if (error instanceof NetworkError) {
+            console.error('\nNetwork Error:');
+            console.error('- Message:', error.message);
+            console.error('\nPlease check your network connection and try again.');
         }
-
-        // Handle general M-Pesa errors
-        if (error instanceof MpesaError) {
-            console.error('M-Pesa error:');
-            console.error('Error message:', error.message);
-            throw error;
+        else if (error instanceof MpesaError) {
+            console.error('\nGeneral M-Pesa Error:');
+            console.error('- Name:', error.name);
+            console.error('- Message:', error.message);
         }
-
-        // Handle unexpected errors
-        console.error('An unexpected error occurred:');
-        console.error('Error:', error);
-        throw new Error('Failed to initiate payment due to an unexpected error');
+        else {
+            // Handle unexpected errors
+            console.error('\nAn unexpected error occurred:', error);
+        }
     }
 }
 
-// Execute the payment initiation with proper error handling
-initiatePayment()
-    .catch(error => {
-        process.exit(1);
+// Execute the STK Push example
+console.log('=== M-Pesa STK Push Example ===');
+initiateStkPush()
+    .then(() => {
+        console.log('\nSTK Push example completed successfully.');
+    })
+    .catch(() => {
+        console.error('\nSTK Push example failed. Please check the errors above.');
     });

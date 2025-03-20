@@ -1,6 +1,6 @@
 {
   "name": "mpesajs",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A Node.js SDK for seamless integration with M-Pesa payment gateway, providing easy-to-use methods for handling transactions, payments, and API interactions",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
