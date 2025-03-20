@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 import { initializeEnv } from './commands/init';
 
 const command = process.argv[2];

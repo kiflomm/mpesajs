@@ -1,6 +1,6 @@
 {
   "name": "mpesajs",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A Node.js SDK for seamless integration with M-Pesa payment gateway, providing easy-to-use methods for handling transactions, payments, and API interactions",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -41,7 +41,7 @@
   },
   "homepage": "https://docs-mpesajs.vercel.app",
   "devDependencies": {
-    "@types/base-64": "^1.0.2",
+    "@types/base-64": "^1.0.3",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.13.10",
     "jest": "^29.7.0",
